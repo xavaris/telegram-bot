@@ -1,130 +1,44 @@
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
-    CommandHandler,
     MessageHandler,
-    CallbackQueryHandler,
     ContextTypes,
     filters,
 )
 import os
-import time
-import asyncio
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID"))
 TOPIC_WTB_ID = int(os.getenv("TOPIC_WTB_ID"))
-TOPIC_WTS_ID = int(os.getenv("TOPIC_WTS_ID"))
 
-COOLDOWN = 12 * 60 * 60  # 12h
-AUTO_DELETE = 12 * 60 * 60  # 12h
-
-last_sent = {}
-pending_choice = {}
-
-def get_display_name(user):
+def get_name(user):
     if user.username:
         return f"@{user.username}"
     return user.first_name or "Użytkownik"
 
-# ===== /start =====
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
-        return
-
-    text = (
-        "🤖 *BOT OGŁOSZEŃ*\n\n"
-        "1️⃣ Napisz treść ogłoszenia\n"
-        "2️⃣ Wybierz *WTB* lub *WTS*\n"
-        "3️⃣ Post pojawi się na grupie\n\n"
-        "⏱ Limit: 1 wiadomość co 12h\n"
-        "🧹 Auto-usuwanie po 12h"
-    )
-    await update.message.reply_text(text, parse_mode="Markdown")
-
-# ===== TEKST OD UŻYTKOWNIKA =====
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
 
     if update.message.chat.type != "private":
         return
 
-    user_id = update.message.from_user.id
-    now = time.time()
+    user = update.message.from_user
+    text = update.message.text
+    name = get_name(user)
 
-    if user_id in last_sent and now - last_sent[user_id] < COOLDOWN:
-        remaining = int((COOLDOWN - (now - last_sent[user_id])) / 3600) + 1
-        await update.message.reply_text(
-            f"⏳ Limit 12h. Spróbuj za ~{remaining}h."
-        )
-        return
-
-    pending_choice[user_id] = update.message.text
-
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("📥 WTB", callback_data="WTB"),
-            InlineKeyboardButton("📤 WTS", callback_data="WTS"),
-        ]
-    ])
-
-    await update.message.reply_text(
-        "Wybierz kategorię:",
-        reply_markup=keyboard
-    )
-
-# ===== PRZYCISK WTB / WTS =====
-async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    user = query.from_user
-    user_id = user.id
-
-    if user_id not in pending_choice:
-        await query.edit_message_text("❌ Brak treści do wysłania.")
-        return
-
-    text = pending_choice.pop(user_id)
-    last_sent[user_id] = time.time()
-
-    topic_id = TOPIC_WTB_ID if query.data == "WTB" else TOPIC_WTS_ID
-    label = "WTB" if query.data == "WTB" else "WTS"
-    name = get_display_name(user)
-
-    sent = await context.bot.send_message(
+    await context.bot.send_message(
         chat_id=GROUP_ID,
-        message_thread_id=topic_id,
-        text=f"🔔 *{label}*\n👤 {name}\n\n{text}",
-        parse_mode="Markdown"
+        message_thread_id=TOPIC_WTB_ID,
+        text=f"📥 WTB\n👤 {name}\n\n{text}"
     )
 
-    await query.edit_message_text("✅ Wysłano.")
+    await update.message.reply_text("✅ Wysłano do WTB.")
 
-    # auto-usuwanie po 12h
-    await asyncio.sleep(AUTO_DELETE)
-    try:
-        await context.bot.delete_message(
-            chat_id=GROUP_ID,
-            message_id=sent.message_id
-        )
-    except:
-        pass
-
-# ===== MAIN =====
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    app.add_handler(CallbackQueryHandler(handle_choice))
-
-    print("Bot działa 24/7 (WTB/WTS, limit 12h, auto-delete 12h)")
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_private_message))
+    print("WTB BOT DZIAŁA")
     app.run_polling()
 
 if __name__ == "__main__":
