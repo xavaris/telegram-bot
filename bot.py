@@ -23,7 +23,6 @@ TOPIC_WTS_ID = int(os.getenv("TOPIC_WTS_ID"))
 COOLDOWN = 12 * 60 * 60  # 12h
 AUTO_DELETE = 12 * 60 * 60  # 12h
 
-# pamięć w RAM (wystarcza na Railway)
 last_sent = {}
 pending_choice = {}
 
@@ -32,19 +31,26 @@ def get_display_name(user):
         return f"@{user.username}"
     return user.first_name or "Użytkownik"
 
+# ===== /start =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return
+
     text = (
         "🤖 *BOT OGŁOSZEŃ*\n\n"
-        "Jak to działa:\n"
-        "1️⃣ Napisz do mnie wiadomość (treść ogłoszenia)\n"
+        "1️⃣ Napisz treść ogłoszenia\n"
         "2️⃣ Wybierz *WTB* lub *WTS*\n"
-        "3️⃣ Post pojawi się na grupie z Twoim nickiem\n\n"
+        "3️⃣ Post pojawi się na grupie\n\n"
         "⏱ Limit: 1 wiadomość co 12h\n"
-        "🧹 Post znika po 12h\n"
+        "🧹 Auto-usuwanie po 12h"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
+# ===== TEKST OD UŻYTKOWNIKA =====
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return
+
     if update.message.chat.type != "private":
         return
 
@@ -72,6 +78,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=keyboard
     )
 
+# ===== PRZYCISK WTB / WTS =====
 async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -109,6 +116,7 @@ async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         pass
 
+# ===== MAIN =====
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
